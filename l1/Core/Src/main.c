@@ -48,6 +48,20 @@ UART_HandleTypeDef hlpuart1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
+uint16_t ADCRawRead[40];
+uint16_t ch1;
+uint16_t ch2;
+uint16_t ch15;
+uint16_t cht;
+uint16_t ch1avg;
+uint16_t ch2avg;
+uint16_t ch15avg;
+uint16_t chtavg;
+uint16_t r1temp;
+uint16_t r2air;
+uint16_t r3light;
+uint16_t chtC;
+
 
 /* USER CODE END PV */
 
@@ -59,7 +73,7 @@ static void MX_LPUART1_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-
+void ADCRead();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -100,6 +114,8 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  HAL_ADC_Start_DMA(&hadc1, ADCRawRead, 40);
+  HAL_TIM_Base_Start(&htim3);
 
   /* USER CODE END 2 */
 
@@ -110,6 +126,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  ADCRead();
   }
   /* USER CODE END 3 */
 }
@@ -382,6 +399,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
@@ -389,6 +409,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
@@ -406,6 +433,40 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void ADCRead(){
+	ch1 = 0;
+	ch2 = 0;
+	ch15 = 0;
+	cht = 0;
+	for (int i = 0; i < 40; i++)
+	{
+		if (i % 4 == 0)
+		{
+			ch1 += ADCRawRead[i];
+		}
+		else if (i % 4 == 1)
+		{
+			ch2 += ADCRawRead[i];
+		}
+		else if (i % 4 == 2)
+		{
+			ch15 += ADCRawRead[i];
+		}
+		else if (i % 4 == 3)
+		{
+			cht += ADCRawRead[i];
+		}
+	}
+	ch1avg = ch1/10.0;
+	ch2avg = ch2/10.0;
+	ch15avg = ch15/10.0;
+	chtavg = cht/10.0;
+
+	r1temp = 20.0+((ch1avg/4095.0)*20.0);
+	r2air = (ch2avg/4095.0)*500.0;
+	r3light = (ch15avg/4095.0)*2000.0;
+	chtC = (chtavg*3.3/4095.0)*100.0;
+}
 
 /* USER CODE END 4 */
 

@@ -61,7 +61,11 @@ uint16_t r1temp;
 uint16_t r2air;
 uint16_t r3light;
 uint16_t chtC;
-
+uint16_t N;
+uint16_t M;
+uint16_t preN = 0;
+uint16_t preM = 0;
+uint8_t step;
 
 /* USER CODE END PV */
 
@@ -74,6 +78,8 @@ static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 void ADCRead();
+void UpdateSignal();
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -114,8 +120,9 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_ADC_Start_DMA(&hadc1, ADCRawRead, 40);
   HAL_TIM_Base_Start(&htim3);
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_ADC_Start_DMA(&hadc1, ADCRawRead, 40);
 
   /* USER CODE END 2 */
 
@@ -127,6 +134,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  ADCRead();
+	  UpdateSignal();
   }
   /* USER CODE END 3 */
 }
@@ -342,7 +350,7 @@ static void MX_TIM3_Init(void)
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -425,8 +433,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  HAL_NVIC_SetPriority(TIM3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM3_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -468,6 +476,49 @@ void ADCRead(){
 	chtC = (chtavg*3.3/4095.0)*100.0;
 }
 
+void UpdateSignal(){
+	N = r2air;
+	M = r3light;
+	if (N != preN || M != preM) {
+		preN = N;
+		preM = M;
+		step = 0;
+		__HAL_TIM_SET_AUTORELOAD(&htim3,100);
+		__HAL_TIM_SET_COUNTER(&htim3,0);
+		HAL_TIM_Base_Start_IT(&htim3);
+	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(htim == &htim3)
+	{
+		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+		switch(step){
+		case 0:
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+			__HAL_TIM_SET_AUTORELOAD(&htim3,100000);
+			step = 1;
+			break;
+		case 1:
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
+			__HAL_TIM_SET_AUTORELOAD(&htim3,N+100);
+			step = 2;
+			break;
+		case 2:
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_RESET);
+			__HAL_TIM_SET_AUTORELOAD(&htim3,M+100);
+			step = 3;
+			break;
+		case 3:
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_0, GPIO_PIN_SET);
+			HAL_TIM_Base_Stop_IT(&htim3);
+			step = 0;
+			break;
+		}
+		__HAL_TIM_SET_COUNTER(&htim3,0);
+	}
+}
 /* USER CODE END 4 */
 
 /**
